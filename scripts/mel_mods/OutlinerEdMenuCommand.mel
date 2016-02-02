@@ -1,0 +1,83 @@
+global proc OutlinerEdMenuCommand (string $outlineEd)
+{
+	//
+	// This is the post command for the Outliner Editor popup menu
+
+	popupMenu -e -markingMenu 1 outlinerPanel1Popup;
+	
+	if (!`menuItem -ex selectHierarchyItem`)
+		menuItem -label "Select Hierarchy" -command "selectHierarchy" -parent outlinerPanel1Popup -rp "E"
+			selectHierarchyItem;
+
+	setParent -m ($outlineEd+"Popup");
+	menuItem -edit
+		-checkBox `outlinerEditor -query -showDagOnly $outlineEd`
+		-rp "S"
+		dagItem;
+	menuItem -edit
+		-checkBox `outlinerEditor -query -showShapes $outlineEd`
+		-rp "W"
+		shapeItem;
+	menuItem -edit
+		-checkBox `outlinerEditor -query -showAttributes $outlineEd`
+		attributeItem;
+	menuItem -edit
+		-checkBox `outlinerEditor -query -showSetMembers $outlineEd`
+		setMembersItem;
+	menuItem -edit
+		-checkBox `outlinerEditor -query -showConnected $outlineEd`
+		connectedItem;
+	menuItem -edit
+		-checkBox `outlinerEditor -query -showNamespace $outlineEd`
+		showNamespaceItem;
+	menuItem -edit
+		-checkBox `outlinerEditor -query -showMuteInfo $outlineEd`
+		showMuteItem;
+    menuItem -edit
+		-checkBox `outlinerEditor -query -organizeByLayer $outlineEd`
+		organizeLayerItem;		
+    menuItem -edit
+		-checkBox `outlinerEditor -query -autoExpandLayers $outlineEd`
+		autoExpandLayersItem;				
+
+	int $outlinerLongName = 1;
+	if (!`outlinerEditor -query -niceNames $outlineEd`) {
+		$outlinerLongName = (`outlinerEditor -query -longNames $outlineEd` ? 2 : 0);
+	}
+		menuItem -edit
+			-radioButton ( 1 == $outlinerLongName )
+			niceNameItem;
+		menuItem -edit
+			-radioButton ( 2 == $outlinerLongName )
+			longNameItem;
+		menuItem -edit
+			-radioButton ( 0 == $outlinerLongName )
+			shortNameItem;
+
+	string $sortOrder = `outlinerEditor -query -sortOrder $outlineEd`;
+		menuItem -edit
+			-radioButton ($sortOrder == "none")
+			noneSortOrderItem;
+		menuItem -edit
+			-radioButton ($sortOrder == "dagName")
+			dagNameSortOrderItem;
+
+	string $attrAlphaOrder = `outlinerEditor -query -attrAlphaOrder $outlineEd`;
+		menuItem -edit
+			-radioButton ($attrAlphaOrder == "default")
+			defaultAttrAlphaSortOrderItem;
+		menuItem -edit
+			-radioButton ($attrAlphaOrder == "ascend")
+			ascendAttrAlphaSortOrderItem;
+		menuItem -edit
+			-radioButton ($attrAlphaOrder == "descend")
+			descendAttrAlphaSortOrderItem;
+}
+
+global proc selectHierarchy()
+{
+	string $sel[] = `ls -sl`;
+	select -hi;
+	select -d `ls -s -sl`;
+	select -d $sel;
+}

@@ -1,0 +1,5 @@
+﻿// outlinerEdMenuUserCallback
+global proc outlinerEdMenuUserCallback()
+{
+	print "outlinerEdMenuUserCallback USER!!!";
+}

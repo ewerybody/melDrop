@@ -1,0 +1,275 @@
+// timeToolsMM
+// replacements for the standard hold W/R+LMB marking menus to use the timeToolsFunctions in the GraphEditor
+
+global proc timeToolsMM()
+{
+	print("timeToolsMM is loaded!\n");
+}
+
+/////////////////////
+// replacements for all the standard MMs
+global proc buildSelectMM()
+{
+	timeToolsBuildMM "Select" "select";
+}
+global proc buildTranslateMM()
+{
+	timeToolsBuildMM "Move" "translate";
+}
+global proc buildRotateMM()
+{
+	timeToolsBuildMM "Rotate" "rotate";
+}
+global proc buildScaleMM()
+{
+	timeToolsBuildMM "Scale" "scale";
+}
+
+// universal timeTools MM-proc
+global proc timeToolsBuildMM(string $type, string $type2)
+{
+	int $autoConvertInUVEdit = 1;
+
+	if (`popupMenu -exists tempMM`)
+		deleteUI tempMM;
+	
+	if (`currentCtx` != (tolower($type) + "SuperContext"))
+	{
+		$evalTool = $type + "Tool";
+		print( "$evalTool: \"" + $evalTool + "\"\n");
+		eval($evalTool);
+	}
+	
+	popupMenu -markingMenu true 
+		-button 1 
+		-parent viewPanes  
+		tempMM;
+	
+	string $panel = `getPanel -wf`;
+	if ($panel == "graphEditor1")
+		eval("timeTools_" + $type + "MarkingMenu");
+	else if ($panel == "polyTexturePlacementPanel1")
+	{
+		// auto convert selection to UVs
+		if ($autoConvertInUVEdit)
+		{
+			textureWindowSelectConvert 4;
+			changeSelectMode -component; selectType -ocm -alc false;
+			selectType -alc false; selectType -puv true;
+			selectType -smu true; selectType -suv true;
+		}
+
+		eval("ezUVTools_" + $type + "MarkingMenu");
+	}
+	else
+		eval($type2 + "MarkingMenuImpl");
+	
+	setParent -menu ..;
+}
+
+proc string[] getAnimCurves()
+{
+	string $animCurves[] = `keyframe -q -name`;
+	if (!size($animCurves))
+		error "there are no animCurves in the selection!";
+	
+	return $animCurves;
+}
+
+// gets first and last of all or selected keys works dynamically
+proc float[] getFirstLast()
+{
+	float $firstLast[2];
+	float $allSelKeys[] = sort(keyframe("-q"));
+	$firstLast[0] = $allSelKeys[0];
+	$firstLast[1] = $allSelKeys[size($allSelKeys) - 1];
+	return $firstLast;
+}
+
+proc float[] getHighLow(string $which)
+{
+	float $highLow[2];
+	float $allValues[] = sort(`keyframe -q -vc`);
+	$highLow[0] = $allValues[size($allValues) - 1];
+	$highLow[1] = $allValues[0];
+	if ($which == "")
+		return $highLow;
+	else if ($which == "upper")
+		return {$highLow[0]};
+	else if ($which == "lower")
+		return {$highLow[1]};
+}
+
+global proc timeTools_MoveMarkingMenu()
+{
+	menuItem -rp "W" -label "|< start to time" -command "timeTools_moveTo right time";
+	menuItem -rp "E" -label "end to time >|" -command "timeTools_moveTo left time";
+	menuItem -rp "NW" -label "to highest value" -command "timeTools_moveTo upper value";
+	menuItem -rp "SW" -label "to lowest value" -command "timeTools_moveTo lower value";
+	
+	menuItem -rp "S" -label "to value zero" -command "keyframe -vc 0";
+	menuItem -rp "N" -label "to value 1" -command "keyframe -vc 1";
+	menuItem -rp "NE" -label "1up" -command "keyframe -relative -vc 1";
+	menuItem -rp "SE" -label "1down" -command "keyframe -relative -vc -1";
+	
+	menuItem -label "+180" -command "keyframe -relative -vc 180";
+	menuItem -label "-180" -command "keyframe -relative -vc -180";
+	menuItem -label "+90" -command "keyframe -relative -vc 90";
+	menuItem -label "-90" -command "keyframe -relative -vc -90";
+}
+
+global proc timeTools_ScaleMarkingMenu()
+{
+	menuItem -rp "W" -label "|< start to time" -command "timeTools_scaleTo left";
+	menuItem -rp "E" -label "end to time >|" -command "timeTools_scaleTo right";
+	
+	menuItem -rp "N" -label "scale up x 2" -command "scaleKey -iub false -vs 2 -vp 0";
+	menuItem -rp "S" -label "scale down x 0.5" -command "scaleKey -iub false -vs 0.5 -vp 0";
+	
+	menuItem -rp "NW" -label "flip at upper bound" -command "timeTools_flip upper";
+	menuItem -rp "SW" -label "flip at lower bound" -command "timeTools_flip lower";
+	
+	menuItem -rp "NE" -label "reverse value" -command "timeTools_reverse value";
+	menuItem -rp "SE" -label "reverse time" -command "timeTools_reverse middle";
+	
+	menuItem -label "fade to upper bound" -command "timeTools_fadeTo upper";
+	menuItem -label "fade to zero" -command "timeTools_fadeTo \"\"";
+	menuItem -label "fade to lower bound" -command "timeTools_fadeTo lower";
+	menuItem -divider true;
+	menuItem -label "flip at zero value" -command "scaleKey -iub false -vs -1 -vp 0";
+	menuItem -divider true;
+	menuItem -label "reverse at currentTime" -command "timeTools_reverse time";
+}
+
+global proc timeTools_RotateMarkingMenu()
+{
+	menuItem -rp "E" -label "flat tangents"   -command "keyTangent -itt flat -ott flat";
+	menuItem -rp "S" -label "linear tangents" -command "keyTangent -itt linear -ott linear";
+	menuItem -rp "W" -label "spline tangents" -command "keyTangent -itt spline -ott spline";
+}
+
+global proc timeTools_SelectMarkingMenu()
+{
+	menuItem -rp "W" -label "select all before" -command "timeTools_select left select";
+	menuItem -rp "E" -label "select all after"  -command "timeTools_select right select";
+	menuItem -rp "SW" -label "deselect all before" -command "timeTools_select left deselect";
+	menuItem -rp "SE" -label "deselect all after"  -command "timeTools_select right deselect";
+	menuItem -rp "NW" -label "add all before" -command "timeTools_select left add";
+	menuItem -rp "NE" -label "add all after"  -command "timeTools_select right add";
+	menuItem -rp "S" -label "time to 0"  -command "currentTime 0";
+}
+
+global proc timeTools_scaleTo(string $align)
+{
+	float $firstLast[] = getFirstLast();
+	float $curTime = `currentTime -q`;
+	
+	if ($align == "left")
+		scaleKey -iub false -ts (($firstLast[1]-$curTime)/($firstLast[1]-$firstLast[0])) -tp $firstLast[1];
+	else if ($align == "right")
+		scaleKey -iub false -ts (($curTime-$firstLast[0])/($firstLast[1]-$firstLast[0])) -tp $firstLast[0];
+}
+
+global proc timeTools_moveTo(string $align, string $dir)
+{
+	float $amount;
+	if ($dir == "time")
+	{
+		float $firstLast[] = getFirstLast();
+		if ($align == "left")
+			$amount = currentTime("-q") - $firstLast[1];
+		else if ($align == "right")
+			$amount = currentTime("-q") - $firstLast[0];
+		keyframe -e -r -option "over" -tc $amount;
+	}
+	else if ($dir == "value")
+	{
+		float $amount[] = getHighLow($align);
+		keyframe -e -absolute -option "over" -vc $amount[0];
+	}
+}
+
+global proc timeTools_fadeTo(string $bound)
+{
+	// get selected curves
+	string $animCurves[] = getAnimCurves();
+	$curTime = `currentTime -q`;
+
+	int $selection = false;
+	if (size(`keyframe -q -sl`))
+		$selection = true;
+	
+	// determine valuePivot
+	float $valuePivot[] = {0};
+	if ($bound != "")
+		$valuePivot = getHighLow($bound);
+
+	float $firstLast[] = getFirstLast();
+	// browse each animcurve and each key on it
+	float $thisKeys[];
+	for ($animCurve in $animCurves)
+	{
+		if ($selection)
+			$thisKeys = keyframe("-q", "-sl", $animCurve);
+		else
+			$thisKeys = keyframe("-q", $animCurve);
+
+		for ($key in $thisKeys)
+		{
+			if ($key < $curTime) // factor is (range from this key) / (fulle range before currenttime)
+				scaleKey -valuePivot $valuePivot[0] -iub false -vs (($curTime - $key) / ($curTime - $firstLast[0])) -time $key $animCurve;
+			else if ($key > $curTime) // factor is (range to this key) / (fulle range after currenttime)
+				scaleKey -valuePivot $valuePivot[0] -iub false -vs (($key - $curTime) / ($firstLast[1] - $curTime)) -time $key $animCurve;
+			else // else no calculation needed factor is 0
+				scaleKey -valuePivot $valuePivot[0] -iub false -vs 0 -time $key $animCurve;
+		}
+	}
+}
+
+global proc timeTools_select(string $side, string $mode)
+{
+	// get selected curves
+	string $animCurves[] = getAnimCurves();
+	$curTime = `currentTime -q`;
+
+	string $range;
+	if ($side == "left")
+		$range = `findKeyframe -which first $animCurves` + ":" + `findKeyframe -which "previous" $animCurves`;
+	else if ($side == "right")
+		$range = `findKeyframe -which "next" $animCurves` + ":" + `findKeyframe -which "last" $animCurves`;
+	
+	if ($mode == "select")
+		selectKey -time $range $animCurves;
+	else if ($mode == "deselect")
+		selectKey -time $range -remove $animCurves;
+	else if ($mode == "add")
+		selectKey -time $range -addTo $animCurves;
+}
+
+global proc timeTools_flip(string $bound)
+{
+	float $valuePivot[] = getHighLow($bound);
+	scaleKey -iub false -vs -1 -vp $valuePivot[0];
+}
+
+global proc timeTools_reverse(string $where)
+{
+	if ($where == "value")
+	{		
+		float $highLow[] = getHighLow("");
+		$vp = (($highLow[0] - $highLow[1]) / 2) + $highLow[1];
+		scaleKey -iub false -vs -1 -vp $vp;
+	}
+	else
+	{
+		float $tp = 0.0;
+		if ($where == "time")
+			$tp = currentTime("-q");
+		else if ($where == "middle")
+		{
+			float $firstLast[] = getFirstLast();
+			$tp = (($firstLast[1] - $firstLast[0]) / 2) + $firstLast[0];
+		}
+		scaleKey -iub false -ts -1 -tp $tp;
+	}
+}

@@ -1,0 +1,14 @@
+// panePopAt - I never use the multi-pane/single pane switch.
+// So I rather have something else: What I need more often: Switch the panel menus and status line.
+// don't need them most of the time but sometimes they are helpful indeed.
+global proc panePopAt(int $x, int $y)
+{
+	// TODO: make modular and not dependant on toggling only
+	toggleShelfTabs;
+	ToggleMainMenubar;
+	TogglePanelMenubar;
+	ToggleModelEditorBars;
+	string $controls[] = {"MayaWindow|toolBar1", "MayaWindow|toolBar7"};
+	for ($tlb in $controls)
+		toolBar -e -vis (!toolBar("-q","-vis",$tlb)) $tlb; 
+}

@@ -1,0 +1,111 @@
+// Copyright (C) 1997-2006 Autodesk, Inc., and/or its licensors.
+// All rights reserved.
+//
+// The coded instructions, statements, computer programs, and/or related
+// material (collectively the "Data") in these files contain unpublished
+// information proprietary to Autodesk, Inc. ("Autodesk") and/or its licensors,
+// which is protected by U.S. and Canadian federal copyright law and by
+// international treaties.
+//
+// The Data is provided for use exclusively by You. You have the right to use,
+// modify, and incorporate this Data into other products for purposes authorized 
+// by the Autodesk software license agreement, without fee.
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. AUTODESK
+// DOES NOT MAKE AND HEREBY DISCLAIMS ANY EXPRESS OR IMPLIED WARRANTIES
+// INCLUDING, BUT NOT LIMITED TO, THE WARRANTIES OF NON-INFRINGEMENT,
+// MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, OR ARISING FROM A COURSE 
+// OF DEALING, USAGE, OR TRADE PRACTICE. IN NO EVENT WILL AUTODESK AND/OR ITS
+// LICENSORS BE LIABLE FOR ANY LOST REVENUES, DATA, OR PROFITS, OR SPECIAL,
+// DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES, EVEN IF AUTODESK AND/OR ITS
+// LICENSORS HAS BEEN ADVISED OF THE POSSIBILITY OR PROBABILITY OF SUCH DAMAGES.
+
+//
+// Alias Script File
+// MODIFY THIS AT YOUR OWN RISK
+//
+// Creation Date:  28 June 1996
+//
+//
+//  Procedure Name:
+//      buildObjectMenuItemsNow
+//
+//  Description:
+//      This procedure is called from ModelEdMenu as a postMenuCommand.
+//
+//  Input Arguments:
+//      The parent item to parent the popup menu to.
+//
+//  Return Value:
+//      None.
+//
+global proc ezBuildObjectMenuItems_options()
+{
+	if (`window -ex "ezBuildObjectMenuItems_options"`)
+		deleteUI "ezBuildObjectMenuItems_options";
+
+	window -t "ezBuildObjectMenuItems options" "ezBuildObjectMenuItems_options";
+	columnLayout;
+	checkBox -l "Make Marking Menu work on selection instead of under cursor"
+		-cc "optionVar -iv ezBuildObjectMenuItems_ignoreUnderCursor #1"
+		-v (`optionVar -q ezBuildObjectMenuItems_ignoreUnderCursor`);	
+
+	checkBox -en 0 -l "Enter component mode on all selected transforms."
+		-cc "optionVar -iv ezBuildObjectMenuItems_enterCompModeOnAll #1"
+		-v (`optionVar -q ezBuildObjectMenuItems_enterCompModeOnAll`);
+
+	checkBox -l "On \"Object Mode\" select transforms instead of keeping components selected."
+		-cc "optionVar -iv ezBuildObjectMenuItems_objModeSelTrans #1"
+		-v (`optionVar -q ezBuildObjectMenuItems_objModeSelTrans`);
+
+	checkBox -l "Avoid \"Select All/Complete Tool\" popup. Show menu of hilited."
+		-cc "optionVar -iv ezBuildObjectMenuItems_avoidSelAllCompTool #1"
+		-v (`optionVar -q ezBuildObjectMenuItems_avoidSelAllCompTool`);
+
+	showWindow "ezBuildObjectMenuItems_options";
+}
+
+global proc buildObjectMenuItemsNow( string $parentName)
+{
+	global int $gIsMarkingMenuOn;
+
+	if (`popupMenu -e -exists $parentName`) {
+		popupMenu -e -deleteAllItems $parentName;	
+		if (`popupMenu -q -mm $parentName` != $gIsMarkingMenuOn) {
+			popupMenu -e -mm $gIsMarkingMenuOn $parentName;
+		}
+		if (!`dagObjectHit -mn $parentName`) {
+			string $leadObject[] = `ls -sl -tail 1 -typ transform -typ shape`;
+
+			// optional: if standard way did not return a name try to get hilited:
+			if (`optionVar -q ezBuildObjectMenuItems_avoidSelAllCompTool` && !size($leadObject))
+			{
+				$leadObject = `ls -hilite`;
+				if (!size($leadObject))
+					$leadObject = listRelatives("-p", (`ls -dag -s -o -sl`));
+			}
+
+			if (size($leadObject))
+			{
+				dagMenuProc($parentName, $leadObject[0]);
+			}
+			else
+			{
+				setParent -menu $parentName;
+
+				menuItem
+					-label (uiRes("m_buildObjectMenuItemsNow.kSelectAll"))
+					-radialPosition "S"
+					-command ("SelectAll");
+
+            	menuItem
+					-label (uiRes("m_buildObjectMenuItemsNow.kCompleteTool"))
+					-radialPosition "N"
+					-command ("CompleteCurrentTool");
+
+            	setParent ..;
+			}
+		}
+	} else {
+		warning (uiRes("m_buildObjectMenuItemsNow.kParentWarn"));
+	}
+}

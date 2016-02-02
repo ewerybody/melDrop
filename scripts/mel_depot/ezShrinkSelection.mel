@@ -1,0 +1,98 @@
+// shrinks the selection on more than just poly components
+
+proc int isInFloatArray(float $search, float $array[])
+{
+	for ($item in $array)
+		if ($item == $search)
+			return 1;
+
+	return 0;
+}
+
+global proc ezShrinkSelection()
+{
+	string $panel = `getPanel -wf`;
+	string $sel[] = `ls -sl`;
+
+	if ($panel == "graphEditor1")
+	{
+		string $attrsSel[] = `keyframe -q -name`;
+		for ($attr in $attrsSel)
+		{	// for every selected curve
+			float $selKeys[] = `keyframe -q -sl $attr`;
+			float $keysOnCurve[] = `keyframe -q $attr`;
+			
+			// deselect fist and last key by default
+			selectKey -remove -k -t (`findKeyframe -w "first" $attr`) -t (`findKeyframe -w "last" $attr`) $attr;
+
+			for ($key in $keysOnCurve)
+			{	// for every key on this curve
+				if (!isInFloatArray($key,$selKeys))
+				{	// if the key is not selected look for next/prev key
+					float $nxtKey = `findKeyframe -w "next" -t $key $attr`;
+					float $pvsKey = `findKeyframe -w "previous" -t $key $attr`;
+					selectKey -remove -k -t $nxtKey -t $pvsKey $attr;
+				}
+			}
+		}
+	}
+	else
+	{
+		select -r $sel; // for undo
+		// if you have CVs selected
+		string $selCV[], $selEP[];
+		if (size($selCV = `filterExpand -ex 0 -sm 28 $sel`))
+		{
+			string $shape[] = `listRelatives -p $sel`;
+			for ($cv in $selCV) 
+			{
+				string $cvNum = substitute($cv, "s/.*\\[([0-9,:]+)\\]/$1/");
+				int $cvNum1, $cvNum2;
+				if (`gmatch $cvNum "*:*"`)
+				{
+					string $parts[];
+					tokenize $cvNum ":" $parts;
+					$cvNum1 = $parts[0];
+					$cvNum2 = $parts[1];
+				}
+				else
+				{
+					$cvNum1 = $cvNum;
+					$cvNum2 = $cvNum;
+				}
+					select -d ($shape[0] + ".cv[" + $cvNum1 + "]");
+					select -d ($shape[0] + ".cv[" + $cvNum2 + "]");				
+			}
+		}
+		// if you have EPs selected
+		else if (size($selEP = `filterExpand -ex 0 -sm 30 $sel`))
+		{
+			string $shape[] = `listRelatives -p $sel`;
+			for ($ep in $selEP) 
+			{
+				string $epNum = substitute($ep, "s/.*\\[([0-9,:]+)\\]/$1/");
+				int $epNum1, $epNum2;
+				if (`gmatch $epNum "*:*"`)
+				{
+					string $parts[];
+					tokenize $epNum ":" $parts;
+					$epNum1 = $parts[0];
+					$epNum2 = $parts[1];
+				}
+				else
+				{
+					$epNum1 = $epNum;
+					$epNum2 = $epNum;
+				}
+				select -d ($shape[0] + ".ep[" + $epNum1 + "]");
+				select -d ($shape[0] + ".ep[" + $epNum2 + "]");
+			}
+		}
+		// if everything else selected
+		else if (size($sel))
+		{
+			PolySelectTraverse 2;
+			select -r `ls -sl`;
+		}
+	}
+}

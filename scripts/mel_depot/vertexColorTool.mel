@@ -1,0 +1,197 @@
+global proc vertexColorTool()
+{
+	// kill window if already exists
+	if (`window -q -ex vertexColorToolWindow`)
+		deleteUI vertexColorToolWindow;
+	window -t "vertex color tool"
+		-s 0 -tlb 1 -menuBar 0
+		vertexColorToolWindow;
+		//menu -label "Stuff";
+		//	menuItem -label "Paint Vertex Color Tool" -command "PaintVertexColorToolOptions;";
+		//	menuItem -label "Toggle Vertex Colors" -command "vertexColorToolToggleColor";
+	columnLayout -rs 0;
+		rowLayout -nc 2;
+			checkBox -label "vColors" -changeCommand "vertexColorToolToggleColor #1" vertexColorTool_vColorCheck;
+			button -label "Paint Vertex Color Tool" -command "PaintVertexColorToolOptions";
+		setParent ..;
+		rowLayout -nc 3 -cw3 50 384 50 -cl3 "center" "center" "center";
+			// getALL
+			button -l "get" -al "center" -h 80 -w 50 -ann "get vertex color AND alpha from selection."
+				-c "vertexColorToolGetAll";
+			columnLayout -cal "center";
+				rowLayout -nc 3 -cw3 55 279 55 -cl3 "center" "center" "center";
+					button -l "get" -h 40 -w 50 -ann "get vertex color from selection."
+						-c "vertexColorToolGetColor";
+					// first create the vertexColorToolColor optionVar, at slider creation must be a float[] returned!
+					if (!`optionVar -ex vertexColorToolColor`)
+						optionVar -fv "vertexColorToolColor" 1 -fva "vertexColorToolColor" 1 -fva "vertexColorToolColor" 1;
+					float $vertexColorToolColor[] = `optionVar -q vertexColorToolColor`;
+					colorSliderGrp -l "color" -cw 1 40
+						-rgbValue $vertexColorToolColor[0] $vertexColorToolColor[1] $vertexColorToolColor[2]
+						-changeCommand "vertexColorTool_ColorToOptionVar;"
+						vertexColorToolColorSlider;
+						popupMenu -button 3 -mm 1;
+							menuItem -radialPosition "N" -label "Set Color: White" -command "vertexColorToolSetColor 1 1 1 0";
+							menuItem -radialPosition "S" -label "Set Color: Black" -command "vertexColorToolSetColor 0 0 0 0";
+					button -l "set" -h 40 -w 50 -ann "set vertex color to selection."
+						-c "vertexColorToolSetColorFromSlider 0; showWindow MayaWindow;";
+					popupMenu -button 3;
+						menuItem -label "Randomly asign that color" -command "vertexColorToolSetColorFromSlider 1";
+				setParent ..;
+				rowLayout -nc 3 -cw3 55 279 55 -cl3 "center" "center" "center";
+					button -l "get" -h 40 -w 50 -ann "get vertex alpha from selection."
+						-c "vertexColorToolGetAlpha";
+					floatSliderGrp -field 1 -l "alpha" -cw 1 40
+						-min 0 -max 1 -precision 3
+						-value (`optionVar -q vertexColorToolAlpha`)
+						-changeCommand "optionVar -fv vertexColorToolAlpha #1"
+						vertexColorToolAlphaSlider;
+						popupMenu -button 3 -mm 1;
+							menuItem -radialPosition "N" -label "Set Alpha: 1" -command "vertexColorToolSetAlpha 1";
+							menuItem -radialPosition "S" -label "Set Alpha: 0" -command "vertexColorToolSetAlpha 0";
+					button -l "set" -h 40 -w 50 -ann "set vertex alpha to selection."
+						-c "vertexColorToolSetAlpha(`floatSliderGrp -q -v vertexColorToolAlphaSlider`); showWindow MayaWindow;";
+				setParent ..;
+			setParent ..;
+			button -l "set" -h 80 -w 50 -ann "set vertex color AND alpha to selection."
+				-c "vertexColorToolSetAll; showWindow MayaWindow;";
+		setParent ..;
+		button -w 484 -h 25 -l "Close" -c "deleteUI vertexColorToolWindow;";
+	window -e -w 490 -h 148 vertexColorToolWindow;
+	showWindow vertexColorToolWindow;
+	
+	vertexColorTool_checkVColorsOnSel();
+	
+	scriptJob
+		-parent vertexColorToolWindow
+		-event SelectionChanged "vertexColorTool_checkVColorsOnSel";
+}
+
+global proc vertexColorTool_checkVColorsOnSel()
+{
+	int $state = 0;
+	
+	string $selMeshShapes[] = ls("-type", "mesh", `ls -sl -o -dag -s`);
+	for ($shape in $selMeshShapes)
+	{
+		$state = 1;
+		if (!getAttr($shape + ".displayColors"))
+		{
+			$state = 0;
+			break;
+		}
+	}
+	
+	checkBox -e -v $state vertexColorTool_vColorCheck;
+}
+
+global proc vertexColorToolToggleColor(int $state)
+{
+	string $shapes[] = ls("-type", "mesh", `ls -sl -o -dag -s`);
+	if (size($shapes))
+	{
+		for ($x in $shapes)
+			setAttr ($x + ".displayColors") $state;
+	}
+}
+
+// GET functions ////////////////////////////////////////////////////////
+global proc vertexColorToolGetAll()
+{
+	string $sel[] = ls("-fl",`polyListComponentConversion -tv`);
+	if (size($sel) == 0) error"Select a vertex!";
+	if (size($sel) > 1) warning"Only the first vertex will be querried!";
+	float $color[] = `polyColorPerVertex -q -rgb $sel[0]`;
+	float $alpha[] = `polyColorPerVertex -q -a $sel[0]`;
+	colorSliderGrp -e -rgb $color[0] $color[1] $color[2] vertexColorToolColorSlider;
+	floatSliderGrp -e -v $alpha[0] vertexColorToolAlphaSlider;
+}
+
+global proc vertexColorToolGetColor()
+{
+	string $sel[] = ls("-fl",`polyListComponentConversion -tv`);
+	if (size($sel) == 0) error"Select a vertex!";
+	if (size($sel) > 1) warning"Only the first vertex will be querried!";
+	float $color[] = `polyColorPerVertex -q -rgb $sel[0]`;
+	colorSliderGrp -e -rgb $color[0] $color[1] $color[2] vertexColorToolColorSlider;
+}
+
+global proc vertexColorToolGetAlpha()
+{
+	string $sel[] = ls("-fl",`polyListComponentConversion -tv`);
+	if (size($sel) == 0) error"Select a vertex!";
+	if (size($sel) > 1) warning"Only the first vertex will be querried!";
+	float $alpha[] = `polyColorPerVertex -q -a $sel[0]`;
+	floatSliderGrp -e -v $alpha[0] vertexColorToolAlphaSlider;
+}
+
+// SET functions ////////////////////////////////////////////////////////
+global proc vertexColorToolSetAll()
+{
+	// string $sel[] = ls("-fl",`polyListComponentConversion -tv`);
+	string $sel[] = `polyListComponentConversion -tv`;
+	if (size($sel) == 0) error"Select some vertices!";
+	float $color[] = `colorSliderGrp -q -rgb vertexColorToolColorSlider`;
+	float $alpha = `floatSliderGrp -q -v vertexColorToolAlphaSlider`;
+	polyColorPerVertex -a $alpha -rgb $color[0] $color[1] $color[2] $sel;
+	// polyColorPerVertex  $sel;
+}
+
+global proc vertexColorToolSetColorFromSlider(int $random)
+{
+	float $color[] = `colorSliderGrp -q -rgb vertexColorToolColorSlider`;
+	vertexColorToolSetColor($color[0], $color[1], $color[2], $random);
+}
+
+global proc vertexColorToolSetColor(float $r, float $g, float $b, int $random)
+{
+	string $sel[] = ls("-fl",`polyListComponentConversion -tv`);
+	int $numVtxs = size($sel);
+	if (!$numVtxs) error"Select something!";
+	// float $color[] = `colorSliderGrp -q -rgb vertexColorToolColorSlider`;
+	float $alpha[], $thisColor[];
+	
+	int $amount = 1;
+	progressWindow -title "setting vColors..." -status "finished: 0%"
+		-progress 0 -maxValue $numVtxs;
+	
+	for ($vtx in $sel)
+	{	
+		progressWindow -edit -progress $amount
+			-status ("finished: "+ (cutFloat( (( (float)$amount++ / (float)$numVtxs) * 100) ,3)) +"%");
+		
+		// get the alpha of each vertex and set it back when setting color
+		$alpha = `polyColorPerVertex -q -a $vtx`;
+		if ($random)
+		{
+			$thisColor = `polyColorPerVertex -q -rgb $vtx`;
+			float $rand = rand(1);
+			// assign the color by a random influence if rand(1) is 0: full base color - if 1: full new color
+			polyColorPerVertex -a $alpha[0] -rgb (($thisColor[0] * $rand) + ($r * (-$rand + 1))) (($thisColor[1] * $rand) + ($g * (-$rand + 1))) (($thisColor[2] * $rand) + ($b * (-$rand + 1)))$vtx;
+		}
+		else
+			polyColorPerVertex -a $alpha[0] -rgb $r $g $b $vtx;
+	}
+	progressWindow -endProgress;
+}
+
+global proc vertexColorToolSetAlpha(float $value)
+{
+	// string $sel[] = ls("-fl",`polyListComponentConversion -tv`);
+	string $sel[] = `polyListComponentConversion -tv`;
+	if (size($sel) == 0) error"Select something!";
+	polyColorPerVertex -a $value $sel;
+}
+
+// just to store the color for the next use of the tool
+global proc vertexColorTool_ColorToOptionVar()
+{
+	float $color[] = `colorSliderGrp -q -rgb vertexColorToolColorSlider`;
+	optionVar -fv "vertexColorToolColor" $color[0] -fva "vertexColorToolColor" $color[1] -fva "vertexColorToolColor" $color[2];
+}
+
+global proc float cutFloat(float $float, int $decimals)
+{
+	int $factor = pow(10,$decimals);
+	return (floor($float * $factor) / $factor);
+}

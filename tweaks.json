@@ -1,0 +1,177 @@
+{
+  "hotkeys": {
+    "AttributeEditor": {
+      "alt": true, 
+      "cat": "User", 
+      "code": "if(`isAttributeEditorRaised`) {\n\tif(!`isChannelBoxVisible`) {\n\t\tsetChannelBoxVisible(1);\n\t} else {\n\t\t$ae = getUIComponentDockControl(\"Attribute Editor\", false);\n\t\tif (`dockControl -q -floating $ae`)\n\t\t    openAEWindow;\n\t\telse\n\t\t\traiseChannelBox;\n\t}\n} else {\n\topenAEWindow;\n}", 
+      "key": "a", 
+      "lang": "mel", 
+      "text": ""
+    }, 
+    "GridOptions": {
+      "alt": true, 
+      "cat": "Display", 
+      "code": "performGridOptions 1", 
+      "key": "G", 
+      "lang": "mel", 
+      "text": "Grid options"
+    }, 
+    "HotkeyPreferencesWindow": {
+      "cat": "Window", 
+      "code": "hotkeyEditor", 
+      "ctl": true, 
+      "key": "F12", 
+      "lang": "mel", 
+      "text": "Create, edit and save hotkeys"
+    }, 
+    "PickWalkDown": {
+      "cat": "Miscellaneous", 
+      "code": "pickWalkRight", 
+      "key": "down", 
+      "lang": "mel", 
+      "text": "Walk right in the current hierarchy"
+    }, 
+    "PickWalkLeft": {
+      "cat": "Miscellaneous", 
+      "code": "pickWalkUp", 
+      "key": "left", 
+      "lang": "mel", 
+      "text": "Walk up in the current hierarchy"
+    }, 
+    "PickWalkRight": {
+      "cat": "Miscellaneous", 
+      "code": "pickWalkDown", 
+      "key": "right", 
+      "lang": "mel", 
+      "text": "Walk down in the current hierarchy"
+    }, 
+    "PickWalkUp": {
+      "cat": "Miscellaneous", 
+      "code": "pickWalkLeft", 
+      "key": "up", 
+      "lang": "mel", 
+      "text": "Walk left in the current hierarchy"
+    }, 
+    "PreferencesWindow": {
+      "cat": "Window", 
+      "code": "preferencesWnd \"general\";", 
+      "key": "F12", 
+      "lang": "mel", 
+      "text": "Set and save Maya preferences"
+    }, 
+    "cycleWOS": {
+      "alt": true, 
+      "cat": "User", 
+      "code": "import ezLib.view\nezLib.view.cycleWOS()", 
+      "key": "X", 
+      "lang": "python"
+    }, 
+    "duplicate": {
+      "cat": "User", 
+      "code": "if (size(`filterExpand -sm 34`))\n    DuplicateFace;\nelse\n    performDuplicate false;", 
+      "ctl": true, 
+      "key": "d", 
+      "lang": "mel", 
+      "text": ""
+    }, 
+    "ezToggleGrid": {
+      "alt": true, 
+      "cat": "User", 
+      "code": "from ezLib.view import toggleGrid\ntoggleGrid()", 
+      "key": "g", 
+      "lang": "python", 
+      "text": ""
+    }, 
+    "finalRename_hotkey": {
+      "cat": "User", 
+      "code": "finalRename();", 
+      "key": "F2", 
+      "lang": "mel", 
+      "text": ""
+    }, 
+    "graphLayout": {
+      "alt": true, 
+      "cat": "User", 
+      "code": "setPaneLayout_keepPanelSettings(\"Persp/Graph/Outliner\");\nezGraphFilter;", 
+      "key": "2", 
+      "lang": "mel", 
+      "text": ""
+    }, 
+    "outlinerLayout": {
+      "alt": true, 
+      "cat": "User", 
+      "code": "setPaneLayout_keepPanelSettings(\"Persp/Outliner\");\nif (`window -ex ezGraphFilter`)\n\tdeleteUI ezGraphFilter;", 
+      "key": "1", 
+      "lang": "mel", 
+      "text": ""
+    }, 
+    "recentFilesList": {
+      "alt": true, 
+      "cat": "User", 
+      "code": "from ezLib import recentFilesList\nrecentFilesList.show()", 
+      "key": "F2", 
+      "lang": "python", 
+      "text": ""
+    }, 
+    "resetPivot": {
+      "cat": "User", 
+      "code": "from CryCore import transform\ntransform.resetPivot()", 
+      "ctl": true, 
+      "key": "1", 
+      "lang": "python", 
+      "text": ""
+    }, 
+    "selectShell": {
+      "cat": "User", 
+      "code": "ezSelectShell;", 
+      "ctl": true, 
+      "key": "a", 
+      "lang": "mel", 
+      "text": ""
+    }, 
+    "toZero": {
+      "cat": "User", 
+      "code": "import maya.cmds as m;zero = [0.0, 0.0, 0.0]\nfor o in m.ls(sl=1,tr=1):\n\tif m.xform(o,q=1,t=1) == zero:\n\t    m.xform(o,ro=zero)\n\telse:\n\t    m.xform(o,t=zero)", 
+      "key": "0", 
+      "lang": "python", 
+      "text": "toZero"
+    }, 
+    "toggleIsolate": {
+      "cat": "User", 
+      "code": "import ezLib.view\nezLib.view.toggleIsolate()", 
+      "key": "S", 
+      "lang": "python", 
+      "text": ""
+    }, 
+    "toggleVisibility": {
+      "cat": "User", 
+      "code": "{$trSel = `ls -sl -tr`;\nfor ($x in $trSel)\n    setAttr($x + \".v\", !(getAttr($x + \".v\")));}", 
+      "key": "s", 
+      "lang": "mel"
+    }, 
+    "toggleXray": {
+      "alt": true, 
+      "code": "import ezLib.view;ezLib.view.toggleXray()", 
+      "key": "x", 
+      "lang": "python"
+    }, 
+    "uvLayout": {
+      "alt": true, 
+      "cat": "User", 
+      "code": "setPaneLayout_keepPanelSettings(\"Persp/UV Texture Editor\");\nif (`window -ex ezGraphFilter`)\n\tdeleteUI ezGraphFilter;", 
+      "key": "3", 
+      "lang": "mel", 
+      "text": ""
+    },
+    "smartPaste_hotkey": {
+      "ctl": true,
+      "cat": "User", 
+      "code": "smartPaste();", 
+      "key": "v", 
+      "lang": "mel", 
+      "text": ""
+    }
+  },
+  "startUp": {},
+  "shelves": {}
+}

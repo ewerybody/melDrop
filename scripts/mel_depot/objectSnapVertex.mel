@@ -1,0 +1,111 @@
+// objectSnapVertex - snaps objs together based on the vertex-selection on 2 different objects
+
+proc string getStringArrayItem0(string $array[])
+{
+	return $array[0];
+}
+
+global proc objectSnapVertex()
+{
+	if (`window -q -ex objectSnapVertex_Window`) deleteUI objectSnapVertex_Window;
+	window -s 0 -tlb 1 -t "objectSnapVertex" objectSnapVertex_Window;
+		formLayout objectSnapVertex_form;
+			frameLayout -w 263 -lv 0 -borderStyle "out" objectSnapVertex_frame;
+				columnLayout -rs 3 -adj 1;
+					text -align "center" -w 260 -l "select a vertex!" objectSnapVertex_text;
+					// frameLayout -borderStyle "in" -lv 0;
+					textFieldGrp -cw2 60 196 -label "vertex1:" -text  "" -editable false
+						objectSnapVertex_vtx1field;
+					setParent ..;
+				setParent ..;
+			text -vis 0 -l ("objectSnapVertex_GetVertex;")
+				objectSnapVertex_command;
+			button -w 131 -label "stop" -c "objectSnapVertex_startStop" objectSnapVertex_startStopButton;
+			button -w 131 -label "close" -c "deleteUI objectSnapVertex_Window;"
+				objectSnapVertex_closeButton;
+			setParent ..;
+		formLayout -edit
+			-af objectSnapVertex_frame "top" 0 -af objectSnapVertex_frame "left" 0 -af objectSnapVertex_frame "right" 0
+			-af objectSnapVertex_startStopButton "left" 0 -af objectSnapVertex_startStopButton "bottom" 0
+			-af objectSnapVertex_closeButton "right" 0 -af objectSnapVertex_closeButton "bottom" 0
+			-ac objectSnapVertex_startStopButton "right" 0 objectSnapVertex_closeButton
+			objectSnapVertex_form;
+
+	window -e -w 270 -h 103 objectSnapVertex_Window;
+	showWindow objectSnapVertex_Window;
+
+	scriptJob -parent objectSnapVertex_Window -compressUndo 1
+		-e "SelectionChanged" "eval (`text -q -l objectSnapVertex_command`)";
+	
+	objectSnapVertex_GetVertex;
+}
+
+global proc objectSnapVertex_GetVertex()
+{
+	string $sel[] = `ls -sl`;
+	if(size($sel))
+	{
+		string $selVertex[] = `filterExpand -sm 31`;
+		if (`objectType $sel[0]` == "transform")
+		{
+			text -e -l "select a vertex!" objectSnapVertex_text;
+			doMenuComponentSelection($sel[0], "vertex");
+		}
+		else if (size($selVertex))
+		{
+			string $curVertex = `textFieldGrp -q -text objectSnapVertex_vtx1field`;
+			if ($curVertex != "")
+			{
+				string $selVertexShape = getStringArrayItem0(`listRelatives -f -p $selVertex[0]`);
+				string $curVertexShape = getStringArrayItem0(`listRelatives -f -p $curVertex`);
+				if ($selVertexShape != $curVertexShape)
+				{
+					float $selPos[] = `xform -q -ws -t $selVertex[0]`;
+					print $selPos;
+					float $curPos[] = `xform -q -ws -t $curVertex`;
+					print $curPos;
+					string $curTransform = getStringArrayItem0(`listRelatives -f -p $curVertexShape`);
+					move -r ($selPos[0] - $curPos[0]) ($selPos[1] - $curPos[1]) ($selPos[2] - $curPos[2]) $curTransform;
+
+					text -e -l "start me!" objectSnapVertex_text;
+					textFieldGrp -e -text "" objectSnapVertex_vtx1field;
+					button -e -l "start over" -c "objectSnapVertex_startStop" objectSnapVertex_startStopButton;
+					text -e -l "" objectSnapVertex_command;
+
+					hilite -unHilite $curTransform;
+					select -r $curTransform;
+				}
+				else
+				{
+					text -e -l "now select a vertex at another object" objectSnapVertex_text;
+					textFieldGrp -e -text $selVertex[0] objectSnapVertex_vtx1field;
+				}
+			}
+			else
+			{
+				text -e -l "now select a vertex at another object" objectSnapVertex_text;
+				textFieldGrp -e -text $selVertex[0] objectSnapVertex_vtx1field;
+			}
+		}
+	}
+}
+
+global proc objectSnapVertex_startStop()
+{
+	print "objectSnapVertex_startStop\n";
+	if (`text -q -l objectSnapVertex_command` != "")
+	{
+		print "comamnd set - stopping\n";
+		text -e -l "start me!" objectSnapVertex_text;
+		text -e -l "" objectSnapVertex_command;
+		textFieldGrp -e -text "" objectSnapVertex_vtx1field;
+		button -e -l "start" objectSnapVertex_startStopButton;
+	}
+	else
+	{
+		print "comamnd not set - starting\n";
+		text -e -l "objectSnapVertex_GetVertex" objectSnapVertex_command;
+		button -e -l "stop" objectSnapVertex_startStopButton;
+		objectSnapVertex_GetVertex;
+	}
+}

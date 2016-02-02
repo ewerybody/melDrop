@@ -1,0 +1,127 @@
+// //////////////////////////////////////////////////////////////////////////
+// whatIz - extended thing information proc. Tells you if the thing is a:  //
+// MEL-script - from where it is. if editor set: opens it right there      //
+// command - spits out the arguments if available                          //
+// Run Time Command - tells you what code it implies                       //
+// attribute - tells you the value                                         //
+// object - what type it is                                                //
+// /////////////////////////////////////////////////////////////////////////
+
+global proc string whatIz(string $command)
+{
+	string $result = whatIs($command);
+	string $helpReturn;
+	// if its a MEL proc: ///////////////////////////////////////////////////////////
+    if (`gmatch $result "* found in: *"`)
+    {
+		$result = fromNativePath($result);
+        string $path = `match "[a-zA-Z]:/.*$" $result`;
+
+		// see if we are in a nebula toolkit environment:
+		if (exists("rlEnv"))
+		{
+			string $directory = dirname($path);
+			string $scriptName = basename($path,"");
+			string $toolKitScpts = `rlEnv -gethome` + "/data/maya/scripts";
+			string $devScripts = "C:/radonlabs/data/maya/scripts/";
+			
+			// if this is a toolkitscript and dev-scripts are available route there directly:
+			if ($directory == $toolKitScpts && `filetest -d $devScripts`)
+			{
+				warning ("redirecting to " + $toolKitScpts + "!");
+				$path = $devScripts + $scriptName;
+			}
+		}
+
+        string $nativePath = toNativePath($path);
+
+        // >> line number determination
+        $fileId = fopen($path,"r");
+        int $lineNr = 0;
+		int $colNr = 0;
+        int $procFound = 0;
+        string $nextLine = `fgetline $fileId`;
+        while ( (size($nextLine) > 0) && !$procFound)
+        {
+            if ( gmatch($nextLine,("*proc*" + $command + " (*")) ||gmatch($nextLine,("*proc*" + $command + "(*")) && !gmatch($nextLine,("//*")) ) $procFound = 1;
+            $lineNr++;
+            $nextLine = `fgetline $fileId`;
+        }
+        fclose $fileId;
+        // << line number determination
+
+		print("whatIz: \"" + $command + "\" is a mel script from line : " + $lineNr + " in '" + $path + "'\n");
+		
+		// start the editor
+		// the editor to open a found mel script in:
+		string $editor = `optionVar -q "whatIzEditor"`;
+		if (!`filetest -r $editor`)
+		{
+			print("whatIz: Editor Executable invalid! Please pick a proper one...\n");
+			$dialogReturn = `fileDialog2 -fileFilter "Editor Executable(*.exe)" -fileMode 1 -dialogStyle 2 -caption "Pick an Editor Executable" -okCaption "Ok"`;
+			if ($dialogReturn[0] != "")
+			{
+				$editor = $dialogReturn[0];
+				optionVar("-sv", "whatIzEditor", $editor);
+			}
+			else
+				error "whatIz: Editor Executable invalid!";
+		}
+
+		// -n probably Notepad++ specific ... but I don't care now ;P
+		system("start \"" + $editor + "\" \"" + $path + "\" -n" + $lineNr);
+    }
+	// if a command: ///////////////////////////////////////////////////////////
+	else if ($result == "Command")
+	{
+		$helpReturn = help($command);
+		if(gmatch($helpReturn,"Quick help is not available*"))
+		{
+			print("whatIz: \"" + $command + "\" is a command. But help does not provide more information");	
+			return "Command";
+		}
+
+		print("whatIz: \"" + $command + "\" is a command and has the following flags:" + $helpReturn);	
+	}
+	// if a runtime command -- Maya 2012 now doesn't seen to know about
+	// run time commands anymore and sometimes tells you "Presumed Mel procedure.."
+	else if (($result == "Run Time Command") || ($result == "Presumed Mel procedure; no definition seen yet."))
+	{
+		if (!catch($helpReturn = `runTimeCommand -q -c $command`))
+		{
+			print("whatIz: \"" + $command + "\" is a Run Time Command implying the following code:\n_____\n" + $helpReturn + "\n¯¯¯¯¯\n");
+			return "Run Time Command";
+		}
+	}
+	// and if unknows check if its an object or attribute
+	else if ($result == "Unknown")
+	{
+		// an attribute? ///////////////////////////////////////////////////////////
+		if (`gmatch $command "*.*"`)
+		{
+			string $base = basenameEx($command);
+			string $attr = fileExtension($command);
+			if (!`objExists $base`)
+			{
+				print ("whatIz: \"" + $command + "\" looks like an attribute but '" + $base + "' does not exist\n");
+				return $result;
+			}
+			if (`attributeExists $attr $base`)
+			{
+				$result = "attribute";
+				string $value = getAttr($command);
+				print ("whatIz: \"" + $command + "\" is an attribute with the value: \"" + $value + "\"\n");
+			}
+		}
+		// is it an object? ///////////////////////////////////////////////////////////
+		else if (`objExists $command`)
+		{
+			$result = objectType($command);
+			print ("whatIz: \"" + $command + "\" is an object of the type: \"" + $result + "\"\n");
+		}
+		else
+			print ("whatIz: \"" + $command + "\" is an unknown thing!\n");
+	}
+	
+    return $result;
+}

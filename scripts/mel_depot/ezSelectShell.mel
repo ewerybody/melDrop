@@ -1,0 +1,42 @@
+global proc ezSelectShell()
+{
+	string $panel = `getPanel -wf`;
+	string $sel[] = `ls -sl`;
+
+	if ($panel == "graphEditor1")
+	{
+		string $attrsSel[] = `keyframe -q -name`;
+		for ($attr in $attrsSel)
+			selectKey -add -k $attr;
+	}
+	else
+	{
+		select -r $sel; // for undo
+		// if you have CVs selected
+		if (size(`filterExpand -sm 28 $sel`))
+		{
+			string $shapes[] = `listRelatives -p $sel`;
+			for ($shape in $shapes)
+				select -add ($shape + ".cv[*]");
+		}
+		// if you have EPs selected
+		else if (size(`filterExpand -sm 30 $sel`))
+		{
+			string $shapes[] = `listRelatives -p $sel`;
+			for ($shape in $shapes)
+				select -add ($shape + ".ep[*]");
+		}
+		else if (size(`filterExpand -sm 35 $sel`))
+			SelectUVShell;
+		// if you have Lattice Points selected
+		else if (size(`filterExpand -ex 0 -sm 46 $sel`))
+		{
+			string $shapes[] = `listRelatives -p $sel`;
+			for ($shape in $shapes)
+				select -add ($shape + ".pt[*]");
+		}
+		// if everything else selected
+		else if (size($sel))
+			polyConvertToShell;
+	}
+}

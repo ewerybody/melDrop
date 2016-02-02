@@ -1,0 +1,53 @@
+// finalRename - a very simple but mighty renamer for maya
+// way better than the standard rename and nice and handy through
+// usage of a Esc-dismissable promptDialog
+// even supports pre- / suffixing as well as deleting strings from objs names
+
+global proc finalRename()
+{
+	string $longSel[] = `ls -sl -l`;
+	string $shortSel[];
+	for ($i = 0; $i < `size($longSel)`; $i++) {
+		$shortSel[$i] = `match "[^|]*$" $longSel[$i]`;
+	}
+	string $tempSel[];
+	string $display = substituteAllString($shortSel[0],"_"," ");
+	string $result = `promptDialog
+		-title "finalRename beta"
+		-message ("Set a new name for \"" + $shortSel[0] + "\" or:\n\nprefix_+ --> attach a prefix\n+_suffix --> attach a suffix\n-lalala --> remove \"lalala\"\n")
+		-text $display
+		-button "OK" -button "Cancel"
+		-defaultButton "OK"	-cancelButton "Cancel"`;
+
+	if ( $result == "OK" ) {
+		string $input = `promptDialog -q`;
+		if (`gmatch $input "* *"`) $input = substitute($input,"s/ /_/g");
+		
+		if ((`gmatch $input "*+*"`) && (`gmatch $input "*-*"`))
+			error "Please use only ONE \"+\" OR \"-\"!";
+		if (`gmatch $input "*+"`) { // prefix mode
+			$input = substring ( $input, 1, (`size($input)`-1));
+			print $input;
+			for ($p = 0; $p < `size($longSel)`;$p++) {
+				rename $longSel[$p] ($input + $shortSel[$p]);
+			}
+		} else if (`gmatch $input "+*"`) { // suffix mode
+			$input = substring ( $input, 2, (`size($input)`));
+			for ($s = 0; $s < `size($longSel)`;$s++) {
+				rename $longSel[$s] ($shortSel[$s] + $input);
+			}
+		} else if (`gmatch $input "-*"`) { // delete from name mode
+			$input = substring ( $input, 2, (`size($input)`));
+			for ($d = 0; $d < `size($longSel)`;$d++) {
+				rename $longSel[$d] `substitute $input $shortSel[$d] ""`;
+			}
+		} else { // normal count mode
+			for ($indx = 0; $indx < `size($longSel)`;$indx++) {
+				$tempSel[$indx] = `rename $longSel[$indx] ("renamerTempName" + $indx)`;
+			}
+			for ($x in $tempSel) {
+				rename $x $input;
+			}
+		}
+	}
+}

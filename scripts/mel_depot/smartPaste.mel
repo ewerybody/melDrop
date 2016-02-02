@@ -1,0 +1,114 @@
+global proc smartPaste()
+{
+	global string $gSmartCopyPasteMaterial;
+	string $face[] = `filterExpand -sm 34`;
+	if (`size($face)`) // if faces are selected paste from UV clipboard
+	{
+		if ($gSmartCopyPasteMaterial != "") hyperShade -assign $gSmartCopyPasteMaterial;
+		polyClipboard -ps -uv;
+		print "UV clipboard pasted\n";
+	}
+	else
+	{	// if we are in the outliner or modelPanel ask for scene paste
+		string $panel = `getPanel -wf`;
+		print( "$panel: \"" + $panel + "\"\n");
+		if ((`getPanel -to $panel` == "modelPanel") || (`getPanel -to $panel` == "outlinerPanel"))
+		{
+			string $result = `confirmDialog -title "Paste Scene Clipboard?"
+				-message "Do you really want to paste the Scene Clipboard?"
+				-button "Ok" -button "Cancel" -defaultButton "Ok"
+		       	-cancelButton "Cancel" -dismissString "Cancel"`;
+		    if ($result == "Ok")
+			{
+				print "doing scenepaste\n";
+				string $beforeAssemblies[] =  `ls -as -l`;
+				string $oldPasted[] = stringArrayRemove(`ls -s "pasted__*"`,`ls "pasted__*"`); // to not modify 
+				print "cutCopyPaste >";
+				cutCopyPaste "paste";
+				print "< cutCopyPaste\n";
+				string $newGroup = sArrayIndex0(stringArrayRemove($beforeAssemblies,`ls -as -l`));
+				string $newPasted[] = stringArrayRemove(`ls -s "pasted__*"`,`ls "pasted__*"`); // without shapes
+				string $newNonShapes[] = stringArrayRemove($oldPasted,$newPasted); // including DAG objs
+				string $newNonDAGs[] = stringArrayRemove(`ls -dag $newNonShapes`,$newNonShapes);
+
+				// rename non DAG-objects
+				string $renamedNonDAGs[];
+				int $sizeRenamedNonDAGs = 0;
+				for($nonDAG in $newNonDAGs)
+					if (`objExists $nonDAG`)
+						$renamedNonDAGs[$sizeRenamedNonDAGs++] = `rename $nonDAG (substitute("(pasted__)+",$nonDAG,""))`;
+				
+				string $newGroupChildren[];
+				if (size(`ls $newGroup`))
+				{
+					print "we have a group\n";
+					// recursive pasted__-renaming for the objects under the new group (DAG objs)
+					smartPaste_renameRecursive($newGroup);
+					$newGroupChildren = `listRelatives -type transform -ad $newGroup`;
+
+					// reorder to original position if available
+					smartPaste_reorderRecursive($newGroup,$newGroup);
+
+					// ungroup everything left in the pasted group
+					if (`objExists $newGroup`)
+						ungroup $newGroup;
+				}
+				
+				print "vvvvvvvvvvv pasted objects vvvvvvvvvvv\n";
+				print $renamedNonDAGs;
+				print $newGroupChildren;
+				print "^^^^^^^^^^^ pasted objects ^^^^^^^^^^\n";
+				print (size($newPasted) + " objects pasted! (shapes, transforms, shader, nonDAG... everything)\n");
+				select $newGroupChildren;
+			}
+		}
+		else // else do standard paste
+		{
+			cutCopyPaste "paste";
+			print "standart clipboard pasted\n";
+		}
+	}
+}
+
+global proc string smartPaste_renameRecursive(string $objToRename)
+{
+	// get children
+	string $children[] = `listRelatives -fullPath -c $objToRename`;
+	for ($child in $children)
+		smartPaste_renameRecursive $child;
+
+	// now handle this object
+	string $shortName = match("[^|]*$", $objToRename);
+	$objToRename = `rename $objToRename (substitute("(pasted__)+",$shortName,""))`;
+	return $objToRename;
+}
+
+global proc smartPaste_reorderRecursive(string $objToReorder, string $baseObj)
+{
+	// get non-shape children:
+	string $children[] = stringArrayRemove(`listRelatives -shapes -fullPath -c $objToReorder`,`listRelatives -fullPath -c $objToReorder`);
+	for ($child in $children)
+		smartPaste_reorderRecursive($child, $baseObj);
+
+	// now handle this object
+	// if its a transform without a child delete it
+	if ((objectType($objToReorder) == "transform") && (!size(`listRelatives -c $objToReorder`)))
+		delete $objToReorder;
+	// if its everything else try to parent to original
+	else
+	{
+		string $pathParts[] = stringToStringArray($objToReorder,"|");
+		int $sizePathParts = size($pathParts);
+		string $origPath;
+		for ($i = 1; $i < ($sizePathParts - 1); $i++)
+			$origPath += "|" + $pathParts[$i];
+		
+		if (objExists($origPath))
+			parent $objToReorder $origPath;
+	}
+}
+
+global proc string sArrayIndex0(string $array[])
+{
+	return $array[0];
+}

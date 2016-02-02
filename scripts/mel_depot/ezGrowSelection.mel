@@ -1,0 +1,164 @@
+// grows the selection on more than just poly components
+
+proc string getStringArrayIndex(string $array[], int $index)
+{
+    return $array[$index];
+}
+
+proc int isInFloatArray(float $search, float $array[])
+{
+	for ($item in $array)
+		if ($item == $search)
+			return 1;
+
+	return 0;
+}
+
+proc string[] getComponentsOfShape(string $components[], string $shape)
+{
+	string $componentsOfThisShape[];
+	int $count = 0;
+	for ($component in $components)
+	{
+		if (getStringArrayIndex(`listRelatives -fullPath -p $component`,0) == $shape)
+			$componentsOfThisShape[$count++] = $component;
+	}
+	return $componentsOfThisShape;
+}
+
+global proc ezGrowSelection()
+{
+	string $panel = `getPanel -wf`;
+	string $sel[] = `ls -sl`;
+
+	if ($panel == "graphEditor1")
+	{
+		string $attrsSel[] = `keyframe -q -name`;
+		for ($attr in $attrsSel)
+		{	// for every selected curve
+			float $selKeys[] = `keyframe -q -sl $attr`;
+			float $keysOnCurve[] = `keyframe -q $attr`;
+			
+			for ($key in $keysOnCurve)
+			{	// for every key on this curve
+				if (!isInFloatArray($key,$selKeys))
+				{	// if the key is not selected look for next/prev key
+					float $nxtKey = `findKeyframe -w "next" -t $key $attr`;
+					float $pvsKey = `findKeyframe -w "previous" -t $key $attr`;
+					if (isInFloatArray($pvsKey,$selKeys) || isInFloatArray($nxtKey,$selKeys))
+					{	// if previous or next key is selected select current one too
+						selectKey -add -k -t $key $attr;
+					}
+				}
+			}
+		}
+	}
+	else
+	{
+		select -r $sel; // for undo
+		
+		// if you have CVs selected
+		string $selCV[], $selEP[], $thisCVs[];
+		// check for grouped ("[12:16]") CVs and get them in one go
+		if (size($selCV = `filterExpand -ex 0 -sm 28 $sel`))
+		{
+			string $sorted[] = sort(filterExpand("-ex", 1, "-sm", 28));
+			select -r $sorted;
+			$selCV = `filterExpand -ex 0 -sm 28`;
+			int $numCVs, $numSpans;
+			string $shapes[] = `listRelatives -fullPath -p $sel`; // get shape
+			for ($shape in $shapes)
+			{
+				print("$shape: \"" + $shape + "\"\n");
+				$thisCVs = getComponentsOfShape($selCV,$shape);
+
+				$numCVs = size(`ls -fl ($shape + ".cv[*]")`);
+				$numSpans = getAttr($shape + ".spans");
+				print("$numSpans: \"" + $numSpans + "\"\n");
+
+				for ($cv in $thisCVs)
+				{
+					// print $thisCVs;
+					// extract numbers
+					string $cvNum = substitute($cv, "s/.*\\[([0-9,:]+)\\]/$1/");
+					int $cvNum1, $cvNum2;
+					if (`gmatch $cvNum "*:*"`) // if bundled tear appart the 2 Nrs
+					{
+						string $parts[];
+						tokenize $cvNum ":" $parts;
+						$cvNum1 = int ($parts[0]) - 1;
+						$cvNum2 = int ($parts[1]) + 1;
+					}
+					else // if not assign the one Nr to both
+					{
+						$cvNum1 = int ($cvNum) - 1;
+						$cvNum2 = int ($cvNum) + 1;
+					}
+					// if closes calculate different
+					if ($numCVs == $numSpans)
+					{
+						if ($cvNum1 < 0)
+							$cvNum1 = ($numCVs - 1);
+						if ($cvNum2 > ($numCVs - 1))
+							$cvNum2 = 0;
+					}
+					select -add ($shape + ".cv[" + $cvNum1 + "]");
+					select -add ($shape + ".cv[" + $cvNum2 + "]");
+				}
+			}
+		}
+		// if you have EPs selected
+		else if (size($selEP = `filterExpand -ex 0 -sm 30 $sel`))
+		{
+			string $shapes[] = `listRelatives -fullPath -p $sel`;
+			for ($shape in $shapes)
+			{
+				$thisEPs = getComponentsOfShape($selEP,$shape);
+				for ($ep in $thisEPs) 
+				{
+					string $epNum = substitute($ep, "s/.*\\[([0-9,:]+)\\]/$1/");
+					int $epNum1, $epNum2;
+					if (`gmatch $epNum "*:*"`)
+					{
+						string $parts[];
+						tokenize $epNum ":" $parts;
+						$epNum1 = $parts[0];
+						$epNum2 = $parts[1];
+					}
+					else
+					{
+						$epNum1 = $epNum;
+						$epNum2 = $epNum;
+					}
+					select -add ($shape + ".ep[" + ($epNum1 - 1) + "]");
+					select -add ($shape + ".ep[" + ($epNum2 + 1) + "]");
+				}
+			}
+		}
+		// if you have LatticePoints selected
+		else if (size($selPT = `filterExpand -ex 0 -sm 46 $sel`))
+		{
+			print "missing LatticePoint ezGrowSelection\n";
+			/*
+			string $shape[] = `listRelatives -p $sel`;
+			for ($pt in $selPT)
+			{
+				string $ptParts[];
+				tokenize $pt "[]" $ptParts;
+				for ($i = 1; $i < 4;$i++)
+				{
+					
+					select ($shape[0] + ".pt[*]");
+				}
+			}
+			*/
+		}
+		// if everything else selected
+		else if (size($sel))
+		{
+			print "GROW everything else\n";
+			PolySelectTraverse 1;
+			select -r `ls -sl`;
+		}
+	}
+}

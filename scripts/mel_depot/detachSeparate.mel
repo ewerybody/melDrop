@@ -1,0 +1,94 @@
+//detachSeparate.mel v1.7
+//Jeff Dobson 7/2/01
+//jeffdobs@swbell.net
+//
+//DESCRIPTION: This script will effectively detach and separate selected faces from a poly mesh.
+//Advantages of this script over Maya's built in detach/separate is that this script doesn't create
+//a third parent node.  It also allows you to break off only the selected faces as opposed to exploding
+//every sub-mesh of an object.
+//SETUP:  Create a shelf button or hotkey with the command   detachSeparate;
+//ICON:  detachSeparate.bmp
+//HISTORY: 7/20/01 - v1.1 -- Changed duplicate command to -un from -rr.  Fixes bug that leaves an extra
+        // shape node when script is run on an object with an extrude in its history.
+        // Q3/2004 - v1.2 -- eric@radonlabs : using "-f" flag for listRelatives. Fixes bug that sometimes "more
+        // than one object matches name..." occures.
+		// 6/09/05 - v1.5 -- eric@radonlabs : added routine to reorder the new object right after the original,
+		// so its no more located at the end of the path you seperated in.
+		// 8/09/05 - v1.6 -- eric@radonlabs : bugfixed reordering stuff. stable now.
+		// 11/9/06 - v1.7 switching to object mode in the end, optimizing, cleaning up
+
+global proc detachSeparate()
+{
+	string $temp[];
+	string $newObj[];
+	string $newFaceSel[];
+	int $newFaceSelCount;
+
+	string $origFaceSel[] = `filterExpand -ex 0 -sm 34`;
+	string $origObjShape[] = `listRelatives -f -p $origFaceSel`;
+	string $origObj[] = `listRelatives -f -p $origObjShape`;
+
+	if (!`optionVar -ex "detachSeparate_mode"`)
+		optionVar -sv "detachSeparate_mode" "Object mode";
+	if (!size($origFaceSel))
+	{
+		string $result = `confirmDialog -t "detachSeparate - Setup"
+			-m ("you have nothing selected!\nWhat mode do you want after the detach operation?\n\n" +
+				"Object mode - you can select whole objects then\n" +
+				"Component mode - you can select further faces to detach then")
+			-b "Object mode" -b "Component mode"`;
+		print ("detachSeparate_mode is now set to \"" + $result + "\"!\n");
+		optionVar -sv "detachSeparate_mode" $result;
+		return;
+	}
+	
+	//Duplicate original object with upstream nodes
+	$newObj = `duplicate -upstreamNodes -renameChildren $origObj[0]`;
+	delete -ch $newObj[0];
+
+	//create face array for new object
+	for ($face in $origFaceSel)
+	{
+		tokenize $face "." $temp;
+		$newFaceSel[$newFaceSelCount] = ($newObj[0] + "." + $temp[1]);
+		$newFaceSelCount++;
+		clear $temp;
+	}
+
+	//Delete original face selection
+	delete $origFaceSel;
+
+	//Delete inverse face selection on duplicate
+	select -r ($newObj[0] + ".f[*]");
+	select -d $newFaceSel;
+	delete;
+
+	// delete children of the new object except for the shape
+	string $newChildren[] = stringArrayRemove(`listRelatives -s $newObj[0]`, `listRelatives -c $newObj[0]`);
+	if (size($newChildren))
+		delete $newChildren;
+
+	//Reordering the new object//
+	string $origPath[] = `listRelatives -f -p $origObj[0]`;
+    string $siblings[];
+    if   (size($origPath))
+		$siblings = `listRelatives -f -c -type transform -type shape $origPath[0]`;
+    else
+		$siblings = `ls -l -assemblies`;
+
+	int $position = 1;
+    for ($sibling in $siblings)
+	{	// determining the position of $origObj
+        if ($sibling != $origObj[0]) { //search $origObj in $siblings
+            $position++; //increase for each obj that isn't $origObj
+        } else break; // stop if found $origObj
+    }
+
+	reorder -front $newObj[0]; // reorder the object to the front
+	reorder -r $position $newObj[0]; // and then at the desired position
+	
+	if (`optionVar -q "detachSeparate_mode"` == "Component mode")
+		doMenuComponentSelection($origObj[0], "facet");
+	else
+		select -r $newObj[0];
+}

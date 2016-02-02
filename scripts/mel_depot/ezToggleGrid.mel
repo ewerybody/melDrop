@@ -1,0 +1,22 @@
+// toggles the grid
+// 1. in the texture panel 
+// 2. in the 3D viewport (on both grid & modelEditor-command)
+
+global proc ezToggleGrid()
+{
+	string $thisPanel = `getPanel -wf`;
+	if 	($thisPanel == "polyTexturePlacementPanel1")
+	{
+		textureWindowToggleGrid ("polyTexturePlacementPanel1","textureWindow");
+	}
+	else if (getPanel("-typeOf", $thisPanel) == "modelPanel")
+	{
+		int $state = 0;
+		// grid is only visible if BOTH are TRUE > if any is FALSE turn ON the grid
+		if (!`grid -q -toggle` || !`modelEditor -q -grid $thisPanel`)
+			$state = 1;
+
+		grid -toggle $state;
+		modelEditor -e -grid $state $thisPanel;
+	}
+}

@@ -1,0 +1,5 @@
+﻿global proc int performFileDropAction(string $theFile) {
+	int $result = 0;
+	print("performFileDropAction: " + $theFile);
+	return ($result);
+}

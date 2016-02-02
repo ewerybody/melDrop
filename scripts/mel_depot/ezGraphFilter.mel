@@ -1,0 +1,284 @@
+//////////////////////////////////////////
+// ezGraphFilter:
+// zoos Graph Filter is real nice and gave me some nice insights
+// though it has usability flaws.. I'm trying to work that out:
+// here is ezGraphFilter!
+//////////////////////////////////////////
+
+// UI stuff:
+global proc ezGraphFilter()
+{
+	if (`window -q -ex ezGraphFilter`)
+		deleteUI ezGraphFilter;
+	window -tlb 1 -titleBar (!`optionVar -q ezGraphFilter_HideTitle`)
+		-sizeable (!`optionVar -q ezGraphFilter_LockSize`)
+		-title "ezGraphFilter"
+		ezGraphFilter;
+	formLayout ezGraphFilter_Col;
+		textScrollList -h 100 -allowMultiSelection 1
+			-selectCommand "ezGraphFilter_Select"
+			-doubleClickCommand "ezGraphFilter_DoubleClick"
+			ezGraphFilter_List;
+		popupMenu -postMenuCommand "ezGraphFilter_Popup" -markingMenu true ezGraphFilter_Popup;
+		popupMenu -button 2 -postMenuCommand "ezGraphFilter_Reset" ezGraphFilter_ResetPopup;
+		formLayout -edit
+			-af "ezGraphFilter_List" "top" 0
+			-af "ezGraphFilter_List" "left" 0
+			-af "ezGraphFilter_List" "right" 0
+			-af "ezGraphFilter_List" "bottom" 0
+			ezGraphFilter_Col;
+	showWindow ezGraphFilter;
+	
+	scriptJob
+		-parent ezGraphFilter
+		-event SelectionChanged "ezGraphFilter_Refresh";
+	scriptJob
+		-parent ezGraphFilter
+		-event DagObjectCreated "ezGraphFilter_Refresh";
+	scriptJob
+		-parent ezGraphFilter
+		-event RecentCommandChanged "ezGraphFilter_Refresh";
+
+	ezGraphFilter_Refresh;
+	showWindow MayaWindow;
+}
+
+global proc ezGraphFilter_Popup()
+{
+    menu -edit -deleteAllItems ezGraphFilter_Popup;
+    setParent -menu ezGraphFilter_Popup;
+	// marking menu
+	menuItem -l "Refresh" -rp "N"
+		-c "ezGraphFilter_Refresh";
+	menuItem -l "Select All" -rp "E"
+		-c "ezGraphFilter_SelectAll";
+	// options
+	menuItem -l "Auto Frame" -ann "Frames the selected animCurves in the GraphEditor as you select channels"
+		-checkBox (`optionVar -q ezGraphFilter_AutoFrame`)
+		-c "optionVar -iv ezGraphFilter_AutoFrame #1; animCurveEditor -e -lookAt selected graphEditor1GraphEd;";
+	menuItem -l "Auto Select" -ann "Select the selected animCurves in the GraphEditor as you select channels"
+		-checkBox (`optionVar -q ezGraphFilter_AutoSelect`)
+		-c "optionVar -iv ezGraphFilter_AutoSelect #1";
+	menuItem -divider 1;
+	// ui options
+    menuItem -l "Hide Title" -ann "For more space you can hide the ezGraphFilter title bar here"
+		-checkBox (`optionVar -q ezGraphFilter_HideTitle`)
+		-c "ezGraphFilter_HideTitle";
+	menuItem -l "Lock Size" -ann "Disables resizing the ezGraphFilter window."
+		-checkBox (`optionVar -q ezGraphFilter_LockSize`)
+		-c "ezGraphFilter_LockSize";
+	menuItem -l "Focus Maya on Sel" -ann "For that you automatically can use your hotkeys on maya after selecting. Makes it impossible to select channels via keyboard though."
+		-checkBox (`optionVar -q ezGraphFilter_ActivateMayaWin`)
+		-c "optionVar -iv ezGraphFilter_ActivateMayaWin #1; showWindow \"MayaWindow\";";
+	menuItem -divider 1;
+	menuItem -l "Close" -c "deleteUI ezGraphFilter";
+}	
+
+global proc ezGraphFilter_Reset()
+{
+	$as = `optionVar -q ezGraphFilter_AutoSelect`;
+	$af = `optionVar -q ezGraphFilter_AutoFrame`;
+	optionVar -iv ezGraphFilter_AutoSelect 0;
+	optionVar -iv ezGraphFilter_AutoFrame 0;
+	ezGraphFilter_SelectAll();
+	optionVar -iv ezGraphFilter_AutoSelect $as;
+	optionVar -iv ezGraphFilter_AutoFrame $af;
+}
+
+//////////////////////////////////////////
+// functional stuff:
+
+proc int isInArray(string $searched, string $array[])
+{
+	for ($item in $array)
+		if ($item == $searched)
+			return true;
+	
+	return false;
+}
+
+global proc string getSArrayItem0(string $array[])
+{
+    return $array[0];
+}
+
+global proc ezGraphFilter_Refresh()
+{
+	global int $ezGraphFilter_ignoreSelChange;
+	if ($ezGraphFilter_ignoreSelChange)
+	{
+		$ezGraphFilter_ignoreSelChange = 0;
+		return;
+	}
+
+	if (!`control -q -ex ezGraphFilter_List`)
+		return;
+
+	string $sel[] = `ls -sl`;
+
+	// get all animatable plug at the selection
+	string $animatablePlugs[] = listAnimatable($sel);
+
+	// if channels were selected mark them in the list:
+	string $selectedCurves[] = `keyframe -q -sl -name`;
+	string $thisCurve[], $hiliteChannels[], $thisChannel;
+	int $sizeHilite = 0;
+	
+	string $channels[];
+	int $numChannels = 0;
+
+	for ($plug in $animatablePlugs) // browse every plug for an animCurve
+	{
+		$thisCurve = `keyframe -q -name $plug`;
+		if (size($thisCurve)) // if it has one
+		{
+			$thisChannel = fileExtension($plug);
+			$channels[$numChannels++] = $thisChannel; // add the channel
+			if (`isInArray $thisCurve[0] $selectedCurves`)
+				$hiliteChannels[$sizeHilite++] = $thisChannel; // remember to select the channel in the UI
+		}
+	}
+
+	// look for motionPaths
+	if (size($sel))
+	{
+		string $motionPaths[] = `listConnections -type motionPath $sel`;
+		string $motionPathCurve[];
+		if (size($motionPaths))
+		{
+			for ($motionPath in $motionPaths)
+			{
+				$channels[$numChannels++] = "motionPath: uValue";
+				$motionPathCurve = `keyframe -q -name $motionPath`;
+				if (`isInArray $motionPathCurve[0] $selectedCurves`)
+					$hiliteChannels[$sizeHilite++] = "motionPath: uValue";
+			}
+		}
+	}
+	
+	$channels = stringArrayRemoveDuplicates($channels);
+			
+	// now refresh list ////////////////////////////////////
+	textScrollList -e -removeAll ezGraphFilter_List;
+	int $tAdd = 1;
+	int $rotScaleAdd = 1;
+	for ($channel in $channels) // ensure that the standard transformations are first:
+	{	// channel come in alphabetically r s t - r&s is fine, t has to be first:
+		if (($channel == "translateX") || ($channel == "translateY") || ($channel == "translateZ"))
+			textScrollList -e -appendPosition ($tAdd++) $channel ezGraphFilter_List;
+		else if (($channel == "rotateX") || ($channel == "rotateY") || ($channel == "rotateZ") ||
+				 ($channel == "scaleX") || ($channel == "scaleY") || ($channel == "scaleZ"))
+			textScrollList -e -appendPosition ($rotScaleAdd++) $channel ezGraphFilter_List;
+		else // everything else to the end of the list:
+			textScrollList -e -append $channel ezGraphFilter_List;
+	}
+	
+	// if channels were selected mark them in the list:
+	for ($channel in $hiliteChannels)
+		textScrollList -e -selectItem $channel ezGraphFilter_List;
+}
+
+proc selectChannel(string $node, string $channel, string $selectKeys[])
+{
+	selectionConnection -e -select ($node + "." + $channel) graphEditor1FromOutliner;
+	if (`optionVar -q ezGraphFilter_AutoSelect`)
+		$selectKeys = stringArrayCatenate($selectKeys, `keyframe -q -name ($node + "." + $channel)`);
+}
+
+global proc ezGraphFilter_Select()
+{
+	string $sel[] = `ls -sl`;
+	string $xShape;
+	string $channels[] = `textScrollList -q -selectItem ezGraphFilter_List`;
+	string $selectKeys[];
+	selectionConnection -e -clear graphEditor1FromOutliner;
+	for ($x in $sel)
+	{
+		for ($channel in $channels)
+		{
+			if (`attributeQuery -node $x -exists $channel`)
+				selectChannel($x, $channel, $selectKeys);
+			else if ($channel == "motionPath: uValue")
+			{
+				string $motionPaths[] = `listConnections -type motionPath $x`;
+				if (size($motionPaths))
+					selectChannel($motionPaths[0], "uValue", $selectKeys);
+			}
+			else
+			{
+				$x = getSArrayItem0(ls("-s", "-dag", $x));
+				if (`attributeQuery -node $x -exists $channel`)
+					selectChannel($x, $channel, $selectKeys);
+			}
+		}
+	}
+	
+	if (`optionVar -q ezGraphFilter_AutoSelect`)
+	{
+		global int $ezGraphFilter_ignoreSelChange;
+		$ezGraphFilter_ignoreSelChange = 1;
+		if (size($selectKeys))
+			selectKey("-r", $selectKeys);
+		else
+			warning "\"$selectKeys\" was empty!!:\n";
+	}
+
+	if (`optionVar -q ezGraphFilter_ActivateMayaWin`)
+		showWindow "MayaWindow";
+
+	
+	if (size($channels))
+	{
+		// don't autoframe with no channels
+		if (`optionVar -q ezGraphFilter_AutoFrame`)
+			animCurveEditor -e -lookAt selected graphEditor1GraphEd;		
+		// ensure selection
+		textScrollList -e -selectItem $channels ezGraphFilter_List;
+	}
+	else
+		ezGraphFilter_Reset();
+}
+
+global proc ezGraphFilter_SelectAll()
+{
+	string $allItems[] = `textScrollList -q -allItems ezGraphFilter_List`;
+	for ($item in $allItems)
+		textScrollList -e -selectItem $item ezGraphFilter_List;
+	ezGraphFilter_Select;
+}
+
+global proc ezGraphFilter_DoubleClick()
+{
+	string $sel[] = `ls -sl`;
+	string $directions[] = {"X","Y","Z"};
+	// doubleclick on textScrollList can only return 1 item:
+	string $channel = getSArrayItem0(`textScrollList -q -selectItem ezGraphFilter_List`);
+	$channel = substring($channel, 1,(size($channel) - 1)); // get channelname without ending (x,y or z)
+	if (($channel == "translate") || ($channel == "rotate") || ($channel == "scale"))
+	{
+		string $allItems[] = `textScrollList -q -allItems ezGraphFilter_List`;
+		for ($item in $allItems)
+		{
+			for ($direction in $directions)
+			{
+				if ($item == $channel + $direction)
+					textScrollList -e -selectItem $item ezGraphFilter_List;
+			}
+		}
+	}
+	ezGraphFilter_Select;
+}
+
+global proc ezGraphFilter_HideTitle()
+{
+	int $curSize = `window -q -h ezGraphFilter`;
+	optionVar -iv ezGraphFilter_HideTitle (!`optionVar -q ezGraphFilter_HideTitle`);
+	window -edit -titleBar (!`optionVar -q ezGraphFilter_HideTitle`) ezGraphFilter;
+	evalDeferred("window -edit -h " + $curSize + " ezGraphFilter");
+}
+
+global proc ezGraphFilter_LockSize()
+{
+	optionVar -iv ezGraphFilter_LockSize (!`optionVar -q ezGraphFilter_LockSize`);
+	window -edit -sizeable (!`optionVar -q ezGraphFilter_LockSize`) ezGraphFilter;
+}

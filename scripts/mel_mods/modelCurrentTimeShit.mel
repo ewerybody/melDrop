@@ -1,0 +1,19 @@
+global proc modelCurrentTimeValues(string $x)
+{
+	// wprint("$x: \"" + $x + "\"\n");
+	// modelViewTimeDragger
+}
+
+global proc modelCurrentTimeProperties()
+{
+}
+
+global proc currentTimeValues(string $x)
+{
+	// print("$x: \"" + $x + "\"\n");
+	// currentTimeContext
+}
+
+global proc currentTimeProperties()
+{
+}

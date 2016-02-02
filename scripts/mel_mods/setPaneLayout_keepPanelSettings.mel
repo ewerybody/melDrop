@@ -1,0 +1,79 @@
+// fetched from setPaneLayout and modified to not touch the actual render settings such as
+// backface culling, xray, wireframe...
+// so this just switches to the layout and thats it!
+
+global proc setPaneLayout_keepPanelSettings( string $whichNamedLayout ) {
+	global string $gMainPane;
+
+	string $configName = `getPanel -cwl $whichNamedLayout`;
+	string $panelType;
+	string $panelName;
+	string $visPanels[4];
+	int    $exists = false;
+	int	   $i,$numberOfPanels;
+
+	if (`panelHistory -exists "mainPanelHistory"`)
+		panelHistory -e -suspend true "mainPanelHistory";
+
+	if (!`paneLayout -exists $gMainPane`)
+		error ("$gMainPane: \"" + $gMainPane + "\" cannot be found!\n");
+
+	//  get state arrays.
+	int $fixed[]		=	`panelConfiguration -q -isFixedState $configName`;
+	string $labels[]	=	`panelConfiguration -q -labelStrings $configName`;
+	string $types[]		=	`panelConfiguration -q -typeStrings $configName`;
+	string $create[]	=	`panelConfiguration -q -createStrings $configName`;
+	string $edit[]		=	`panelConfiguration -q -editStrings $configName`;
+	
+	// loop each panel in this configuration
+	//  build an array of visible panels and make sure that 
+	//  they are parented to the main pane.
+	$numberOfPanels = `panelConfiguration -query -numberOfPanels $configName`;
+	for ($i = 0; $i < $numberOfPanels; $i++) {
+		$panelName = `getPanel -withLabel $labels[$i]`;
+		// if panel exists:
+		if ($panelName != "")
+		{
+			// if panel has no parent:
+			if ("" == `panel -q -control $panelName`) {
+				$panelType = `getPanel -typeOf $panelName`;
+				eval ($panelType + " -e -p $gMainPane " + $panelName);
+			}
+
+			// omit if panel is torn off
+			if (`panel -q -to $panelName`) {
+				string $msg = (uiRes("m_setNamedPanelLayout.kCantUsePanel"));
+				string $pnl = `panel -q -label $panelName`;
+				warning `format -s $pnl $msg`;
+				$visPanels[$i] = "";
+			} else {
+				$visPanels[$i] = $panelName;
+			}
+
+			if ($fixed[$i]) {
+				//
+				// Reset state.
+				//
+				string $editStr = ("int $menusOkayInPanels = `optionVar -q allowMenusInPanels`; string $editorName; string $panelName = \""+ $panelName + "\"; "+ $edit[$i]);
+				// print("$editStr: \"" + $editStr + "\"\n");
+				// eval ($editStr);
+			}
+		}
+	}
+	
+	paneLayout -e -manage false $gMainPane;
+	for ($i = 0; $i < $numberOfPanels; $i++) {
+		if ("" != $visPanels[$i]) {
+			print ("paneLayout -e: " + $visPanels[$i] + " " + ($i+1) + "\n");
+			paneLayout -e -setPane $visPanels[$i] ($i+1) $gMainPane;
+		}
+	}
+	eval `panelConfiguration -q -cfs $configName`;
+	paneLayout -e -manage true $gMainPane;
+	setFocus `paneLayout -q -p1 $gMainPane`;
+
+	if (`panelHistory -exists "mainPanelHistory"`)
+		panelHistory -e -suspend false "mainPanelHistory";
+
+	updateToolbox();
+}
