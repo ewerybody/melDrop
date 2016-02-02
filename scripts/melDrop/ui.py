@@ -7,10 +7,11 @@ import hotkey
 from functools import partial
 from prefs import getPrefs
 
-name = 'melDrop'
 
+name = 'melDrop'
 logging.basicConfig()
 log = logging.getLogger(name)
+LABEL_W = 70
 
 
 class MelDropUI(object):
@@ -22,15 +23,14 @@ class MelDropUI(object):
     
     def buildUi(self):
         self.ui = {}
-        self.ui['labelW'] = 70
         if cmds.window(name, ex=True):
             cmds.deleteUI(name)
+        
         self.ui['win'] = cmds.window(name, title=name)
         self.ui['winLayout'] = cmds.formLayout()
         
         self.ui['butonBar'] = cmds.rowLayout(numberOfColumns=2)
         cmds.button(label='refresh list', c=self.refresh)
-        cmds.button(label='reload mod', c=reloadMe)
         cmds.button(label='reload mod', c=reloadMe)
         cmds.setParent('..')
         
@@ -98,7 +98,7 @@ class MelDropUI(object):
                         # first version: write everything in textFields:
                         for attr in self.tweaks[twkLst][typ][item]:
                             cmds.textFieldGrp(label='%s:' % attr, text=self.tweaks[twkLst][typ][item][attr],
-                                              cw=(1, self.ui['labelW']), adjustableColumn=2)
+                                              cw=(1, LABEL_W), adjustableColumn=2)
 
                         key = self.tweaks[twkLst][typ][item]['key']
                         ctl = 'ctl' in self.tweaks[twkLst][typ][item]
@@ -116,13 +116,13 @@ class MelDropUI(object):
                                 overrideLabel = data['name']
                             if overrideLabel:
                                 cmds.textFieldGrp(label='overrides:', text=overrideLabel, bgc=(0.4, 0, 0),
-                                                  cw=(1, self.ui['labelW']), adjustableColumn=2)
+                                                  cw=(1, LABEL_W), adjustableColumn=2)
     
     # TODO:
     #def drawHotkeyUI(self, item, editable=False, override=False):
     #    if 'text'
     #    if 'text' in item:
-    #        mc.textFieldGrp( label='name:', text=item['name'], bgc=(0.4,0,0), cw=(1, self.ui['labelW']), adjustableColumn=2, editable=editable )
+    #        mc.textFieldGrp( label='name:', text=item['name'], bgc=(0.4,0,0), cw=(1, LABEL_W), adjustableColumn=2, editable=editable )
     
     def getTweaks(self):
         jsons = [j for j in os.listdir(self.root) if os.path.isfile(os.path.join(self.root, j)) and j.endswith('.json')]
@@ -236,10 +236,10 @@ def formArrange(form, arrangements, offset=3, ca=None):
         # if command is found add it or make direction do attachForm
         for d in ['left', 'right', 'top', 'bottom']:
             try:
-            # look where in this arr this side is defined
+                # look where in this arr this side is defined
                 dx = [a[0] for a in arr].index(d)
             except:
-            # not definded: default make this side attachForm
+                # not definded: default make this side attachForm
                 attachForm.append((control, d, offset))
                 continue
             # statement for this side is only 1 long: means do not attach
