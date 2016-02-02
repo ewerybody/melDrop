@@ -1,5 +1,5 @@
 # melDrop - the new one!
-Maya customization &amp; setup tool
+Maya customization &amp; setup tool - WIP
 
 ----------------------
 Still kind of a Maya enhancement distribution & setup thing. So I kept the name.
