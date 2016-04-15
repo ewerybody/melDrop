@@ -1,0 +1,9 @@
+# after extraction this code will be executed
+# two special variables are available:
+# _pacmel_dir: string path to the extracted folder in temp
+#   make sure to delete this afterwards!
+# _pacmel_files: list with string paths to the extracted files
+from pprint import pprint
+print('_pacmel_dir: %s' % _pacmel_dir)
+print('_pacmel_files:')
+pprint(_pacmel_files)

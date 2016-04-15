@@ -7,9 +7,12 @@ import os
 import sys
 import json
 from ui import show
+import prefs
+
+
 import logging
 log = logging.getLogger(__name__)
-import prefs
+
 
 # make changes to the viewport context menus
 # the built-in mel scripts offer ways to alter these through
@@ -54,6 +57,7 @@ def aboutDict():
             continue
         ret[l] = eval('mc.about(%s=True)' % l)
     return ret
+
 
 """
 # C:\Program Files\Autodesk\Maya2013\scripts\others\texturePanel.mel
