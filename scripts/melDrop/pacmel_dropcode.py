@@ -5,7 +5,7 @@
 # _pacmel_files: list with string paths to the extracted files
 import os, subprocess
 from maya import cmds
-usd = cmds.internalVar(usd=True)
+usd = cmds.internalVar(userScriptDir=True)
 for f in _pacmel_files:
     src = os.path.normpath(f)
     trg = os.path.join(usd, os.path.basename(f))

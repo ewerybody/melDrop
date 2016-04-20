@@ -1,4 +1,32 @@
-﻿import maya.cmds as mc
+﻿"""
+A Maya hotkey getting/setting library.
+
+Mainly to be used by the melDrop ui.
+
+To use this manually you can do it like this:
+We need a little dictionary with at least this info:
+
+    my_hotkey = {
+        'code': 'print("It works!!!"),',
+        'key': ';'}
+
+then call melDrop.hotkey.setup with a name and the dict:
+
+    melDrop.hotkey.setup('hotkey_test', my_hotkey)
+
+of course you can also set other hotkey aspects like this:
+
+    my_hotkey = {
+        'code': 'print("It works!!!"),',
+        'key': ';',
+        'lang': 'python',
+        'text': 'Blaa lala this is just a annotation test text ...',
+        'alt': True,
+        'ctl': False}
+
+"""
+
+from maya import cmds
 #from maya.mel import eval as melEval
 #import json
 import logging
@@ -21,53 +49,57 @@ debug = True
 def setup(name, config, *args):
     """
     Applies the given data to a hotkey. Anything that will be overwritten is saved in
-    the melDrop prefs file: melDrop.json located in your Maya versions pref folder
+    the melDrop prefs file: melDrop.json located in your Maya versions pref folder.
     """
-    alt = 'alt' in config
-    ctl = 'ctl' in config
-    
+    label = makeKeyLabel(config)
     # remember current settings if there are any.
     # gather returns empty dict if not but we save that anyway to just delete
     # the hotkey when its deactivated
-    current = gather(config['key'], ctl, alt)
-    
+    current = gather(config['key'], ctl=config.get('ctl', False), alt=config.get('alt', False))
     fromLabel = ''
     if current:
         fromLabel = ' (from: %s)' % current['name']
     
-    prefsDict = prefs.getPrefs()
-    if 'hotkeyBackups' not in prefsDict:
-        prefsDict['hotkeyBackups'] = {}
+        prefsDict = prefs.getPrefs()
+        if 'hotkeyBackups' not in prefsDict:
+            prefsDict['hotkeyBackups'] = {}
+        
+        if label not in prefsDict['hotkeyBackups']:
+            prefsDict['hotkeyBackups'][label] = current
+            prefs.setPrefs(prefsDict)
     
-    label = makeKeyLabel(config)
-    prefsDict['hotkeyBackups'][label] = current
-    prefs.setPrefs(prefsDict)
+    # now just set it
     setHotkey(name, config)
     log.info('set: (%s) %s%s' % (label, name, fromLabel))
 
 
 def setHotkey(name, config, *args):
     log.info('setHotkey: name: %s' % name)
-    if 'nameCommand' in config and config['nameCommand'] != "":
-        nameCmd = config['nameCommand']
-    else:
-        nameCmd = name + '_NameCommand'
+    
+    if 'code' not in config:
+        raise Exception('I need some code to setup a hotkey!')
+        return
+    if 'key' not in config:
+        raise Exception('I need a KEY to setup a hotkey!')
+        return
+
+    nameCmd = config.get('nameCommand', name + '_NameCommand')
     # if there is no special category set make it 'User'
-    if 'cat' in config and config['cat'] != "":
-        cat = config['cat']
-    else:
-        cat = 'User'
+    cat = config.get('cat', 'User')
     # if there is no doc text/annotation just give it the name for now
-    if 'text' in config and config['text'] != "":
-        text = config['text']
-    else:
-        text = name
+    text = config.get('text', name)
+    
+    lang = config.get('lang', 'python')
+    
     # create runtimeCommand, which is wisible in Hotkey Editor and contains actual code!
-    runTimeCmd = createRunTimeCommand(name, config['code'], text, cat, config.get('lang'))
+    runTimeCmd = createRunTimeCommand(name, config['code'], text, cat, lang)
     # create a nameCommand which is triggered by the hotkey
-    nameCmd = mc.nameCommand(nameCmd, ann=text, c=runTimeCmd, sourceType=config['lang'])
+    nameCmd = cmds.nameCommand(nameCmd, ann=text, c=runTimeCmd, sourceType=lang)
+    
     # now the actual hotkey with the keys and modifiers
-    mc.hotkey(k=config['key'], name=nameCmd, alt='alt' in config, ctl='ctl' in config)
+    cmds.hotkey(k=config['key'], name=nameCmd,
+                alt=config.get('alt', False),
+                ctl=config.get('ctl', False))
 
 
 def reset(name, config, keyLabel, *args):
@@ -82,14 +114,14 @@ def reset(name, config, keyLabel, *args):
         return
     backup = prefsDict['hotkeyBackups'][keyLabel]
     if not backup:
-        mc.hotkey(k=config['key'], name="", alt='alt' in config, ctl='ctl' in config)
+        cmds.hotkey(k=config['key'], name="", alt=config.get('alt', False), ctl=config.get('ctl', False))
         log.info('removed: (%s)' % keyLabel)
     else:
         setHotkey(backup['name'], backup)
         log.info('restored: (%s) %s ' % (keyLabel, backup['name']))
     
-    if mc.runTimeCommand(name, ex=True) and not mc.runTimeCommand(name, q=True, default=True):
-        mc.runTimeCommand(name, e=True, delete=True)
+    if cmds.runTimeCommand(name, ex=True) and not cmds.runTimeCommand(name, q=True, default=True):
+        cmds.runTimeCommand(name, e=True, delete=True)
 
     prefsDict['hotkeyBackups'].pop(keyLabel)
     prefs.setPrefs(prefsDict)
@@ -104,26 +136,16 @@ def createRunTimeCommand(name, code, ann='', cat='User', lang='python'):
     return the name of the created thing!!
     """
     
-    edit = mc.runTimeCommand(name, ex=True)
+    edit = cmds.runTimeCommand(name, ex=True)
     # default commands can't be overwritten
-    if edit and mc.runTimeCommand(name, q=True, default=True):
+    if edit and cmds.runTimeCommand(name, q=True, default=True):
         return name
 
-    #code = code.replace('\n','\\n')
-    #code = code.replace('"','\\"')
-    
-    mc.runTimeCommand(name, edit=edit, ann=ann, cat=cat, c=code, commandLanguage=lang)
-    #if edit:
-    #    edit = '-edit'
-    #else:
-    #    edit = ''
-    #cmd = 'runTimeCommand %s -ann "%s" -cat "%s" -c "%s" -commandLanguage "%s" "%s";' % (edit, ann, cat, code, lang, name)
-    #print('cmd: ' + str(cmd))
-    #melEval(cmd)
+    cmds.runTimeCommand(name, edit=edit, ann=ann, cat=cat, c=code, commandLanguage=lang)
     return name
 
 
-def gather(key, ctl=0, alt=0):
+def gather(key, ctl=False, alt=False):
     '''
     returns dict {name, key, code, ann, cat, alt, ctl}
     '''
@@ -137,10 +159,10 @@ def gather(key, ctl=0, alt=0):
         log.error('nameCommand found: "%s" but no runTimeCommand! "%s"' % (nCmd, rtCmd))
         return {}
     try:
-        code = mc.runTimeCommand(rtCmd, q=True, command=True)
-        ann = mc.runTimeCommand(rtCmd, q=True, annotation=True)
-        cat = mc.runTimeCommand(rtCmd, q=True, category=True)
-        lang = mc.runTimeCommand(rtCmd, q=True, commandLanguage=True)
+        code = cmds.runTimeCommand(rtCmd, q=True, command=True)
+        ann = cmds.runTimeCommand(rtCmd, q=True, annotation=True)
+        cat = cmds.runTimeCommand(rtCmd, q=True, category=True)
+        lang = cmds.runTimeCommand(rtCmd, q=True, commandLanguage=True)
     except:
         log.error('could not query runTimeCommand for "%s"' % rtCmd)
         return {}
@@ -173,7 +195,7 @@ def makeKeyLabel(hkDict):
     return '+'.join(keys)
 
 
-def getNameCommand(key, ctl=0, alt=0):
+def getNameCommand(key, ctl=False, alt=False):
     """
     From a key-string plus ctl(bool) and alt(bool) get the internal 'nameCommand'
     that holds the very script code for a hotkey.
@@ -185,7 +207,7 @@ def getNameCommand(key, ctl=0, alt=0):
         key = key.title()
     # Whow! This is severe! Feeding "hotkey" without such a check kills Maya instantly
     if len(key) == 1 or key in longKeys:
-        return mc.hotkey(key, query=True, alt=alt, ctl=ctl, name=True)
+        return cmds.hotkey(key, query=True, alt=alt, ctl=ctl, name=True)
     else:
         log.error('Key invalid: "%s"' % key)
         return ''
@@ -196,7 +218,7 @@ def getRunTimeCommand(nameCmd):
     As there is no way to get a runtimeCommand from a nameCommand directly. This
     browses all 'assignedCommands' for the given nameCommand until it matches
     """
-    for i in range(1, mc.assignCommand(q=True, num=True) + 1):
-        if mc.assignCommand(i, q=True, name=True) == nameCmd:
-            return mc.assignCommand(i, q=True, command=True)
+    for i in range(1, cmds.assignCommand(q=True, num=True) + 1):
+        if cmds.assignCommand(i, q=True, name=True) == nameCmd:
+            return cmds.assignCommand(i, q=True, command=True)
     return ''
