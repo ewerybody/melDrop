@@ -45,3 +45,6 @@ $RECYCLE.BIN/
 Network Trash Folder
 Temporary Items
 .apdisk
+.settings/org.eclipse.ltk.core.refactoring.prefs
+.project
+*.pydevproject
