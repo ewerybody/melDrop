@@ -1,20 +1,21 @@
-import maya.cmds as mc
+import os
 import json
-from os.path import abspath, join, exists
-cfgFile = 'melDrop.json'
+
+from maya import cmds
+
+CONFIG_FILENAME = 'meldrop.json'
+CONFIG_FILEPATH = os.path.join(cmds.internalVar(userPrefDir=True), CONFIG_FILENAME)
 
 
-def getPrefs():
-    prefsFile = abspath(join(mc.internalVar(userPrefDir=True), cfgFile))
-    if exists(prefsFile):
-        with open(prefsFile) as prefsFileObj:
-            prefsDict = json.load(prefsFileObj)
+def load():
+    if os.path.isfile(CONFIG_FILEPATH):
+        with open(CONFIG_FILEPATH) as fobj:
+            prefs_dict = json.load(fobj)
     else:
-        prefsDict = {}
-    return prefsDict
+        prefs_dict = {}
+    return prefs_dict
 
 
-def setPrefs(prefsDict):
-    prefsFile = abspath(join(mc.internalVar(userPrefDir=True), cfgFile))
-    with open(prefsFile, 'w') as prefsFileObj:
-        prefsFileObj.write(json.dumps(prefsDict, sort_keys=True, indent=2))
+def save(prefs_dict):
+    with open(CONFIG_FILEPATH, 'w') as fobj:
+        json.dump(prefs_dict, fobj, sort_keys=True, indent=2)
